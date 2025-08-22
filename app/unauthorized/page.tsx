@@ -1,63 +1,33 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function Unauthorized() {
   useEffect(() => {
-    // Opcional: Log ou alerta para debugging
     console.log("Acessou página de erro: chave inválida ou ausente");
   }, []);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        padding: "20px",
-        textAlign: "center",
-        fontFamily: "Arial, sans-serif",
-        backgroundColor: "#f8f8f8",
-      }}
-    >
-      <h1
-        style={{ color: "#d32f2f", fontSize: "2.5rem", marginBottom: "1rem" }}
-      >
-        Acesso Negado
-      </h1>
-      <p style={{ fontSize: "1.2rem", color: "#333", maxWidth: "600px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center bg-gray-100">
+      <h1 className="text-4xl text-red-600 mb-4 font-bold">Acesso Negado</h1>
+      <p className="text-lg text-gray-700 max-w-md mb-6">
         Você precisa fornecer uma chave válida na URL para acessar o sistema.
         Exemplo:
-        <code
-          style={{
-            background: "#eee",
-            padding: "2px 6px",
-            borderRadius: "4px",
-          }}
-        >
+        <code className="bg-gray-200 px-2 py-1 rounded">
           ?key=sua-chave-secreta
         </code>
       </p>
-      <p style={{ fontSize: "1rem", color: "#666", marginTop: "1rem" }}>
+      <p className="text-gray-600 mb-8">
         Se você acredita que isso é um erro, entre em contato com o
         administrador.
       </p>
-      <a
+      <Link
         href="/"
-        style={{
-          marginTop: "2rem",
-          padding: "10px 20px",
-          backgroundColor: "#1976d2",
-          color: "white",
-          textDecoration: "none",
-          borderRadius: "5px",
-          fontWeight: "bold",
-        }}
+        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
       >
         Voltar para a Página Inicial
-      </a>
+      </Link>
     </div>
   );
 }

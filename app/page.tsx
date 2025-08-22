@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
-import { FaSave, FaSearch, FaFilter } from "react-icons/fa";
+import { useState, FormEvent, useEffect, useCallback } from "react";
+import { FaSave, FaSearch } from "react-icons/fa";
+import Link from "next/link";
 
 interface Registro {
   _id: string;
@@ -21,6 +22,31 @@ export default function Home() {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
 
+  const fetchRegistros = useCallback(
+    async (urlKey: string, s = search, cat = filterCategory) => {
+      try {
+        const res = await fetch(
+          `/api/registros?key=${urlKey}&search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setRegistros(data);
+          setError("");
+        } else {
+          setError(
+            "Erro ao carregar registros: Chave inválida ou problema na API.",
+          );
+        }
+      } catch (err) {
+        console.error("Erro na requisição:", err);
+        setError(
+          "Erro ao conectar com a API. Verifique sua conexão ou tente novamente.",
+        );
+      }
+    },
+    [search, filterCategory],
+  );
+
   useEffect(() => {
     const urlKey = new URLSearchParams(window.location.search).get("key");
     if (!urlKey) {
@@ -31,32 +57,7 @@ export default function Home() {
     }
     setKey(urlKey);
     fetchRegistros(urlKey);
-  }, []);
-
-  const fetchRegistros = async (
-    urlKey: string,
-    s = search,
-    cat = filterCategory,
-  ) => {
-    try {
-      const res = await fetch(
-        `/api/registros?key=${urlKey}&search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setRegistros(data);
-        setError("");
-      } else {
-        setError(
-          "Erro ao carregar registros: Chave inválida ou problema na API.",
-        );
-      }
-    } catch (err) {
-      setError(
-        "Erro ao conectar com a API. Verifique sua conexão ou tente novamente.",
-      );
-    }
-  };
+  }, [fetchRegistros]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -79,6 +80,7 @@ export default function Home() {
         setError("Erro ao salvar registro: Chave inválida ou problema na API.");
       }
     } catch (err) {
+      console.error("Erro ao salvar:", err);
       setError(
         "Erro ao salvar registro. Verifique sua conexão ou tente novamente.",
       );
@@ -92,12 +94,12 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-center">
         <h1 className="text-2xl font-bold text-red-600 mb-4">Erro</h1>
         <p className="text-gray-700 mb-6">{error}</p>
-        <a
+        <Link
           href="/"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           Voltar
-        </a>
+        </Link>
       </div>
     );
   }
