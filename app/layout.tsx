@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sistema de Registros",
+  title: "Cosmos",
   description: "App para registro de ideias",
 };
 
