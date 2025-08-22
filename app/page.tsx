@@ -1,0 +1,225 @@
+"use client";
+
+import { useState, FormEvent, useEffect } from "react";
+import { FaSave, FaSearch, FaFilter } from "react-icons/fa";
+
+interface Registro {
+  _id: string;
+  category: string;
+  description: string;
+  details: string;
+  createdAt: string;
+}
+
+export default function Home() {
+  const [category, setCategory] = useState("Mundo Uno");
+  const [description, setDescription] = useState("");
+  const [details, setDetails] = useState("");
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [key, setKey] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const urlKey = new URLSearchParams(window.location.search).get("key");
+    if (!urlKey) {
+      setError(
+        "Por favor, adicione ?key=sua-chave-secreta na URL para acessar.",
+      );
+      return;
+    }
+    setKey(urlKey);
+    fetchRegistros(urlKey);
+  }, []);
+
+  const fetchRegistros = async (
+    urlKey: string,
+    s = search,
+    cat = filterCategory,
+  ) => {
+    try {
+      const res = await fetch(
+        `/api/registros?key=${urlKey}&search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setRegistros(data);
+        setError("");
+      } else {
+        setError(
+          "Erro ao carregar registros: Chave inválida ou problema na API.",
+        );
+      }
+    } catch (err) {
+      setError(
+        "Erro ao conectar com a API. Verifique sua conexão ou tente novamente.",
+      );
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!key) {
+      setError("Chave não fornecida. Adicione ?key=sua-chave-secreta na URL.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/registros?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, description, details }),
+      });
+      if (res.ok) {
+        setDescription("");
+        setDetails("");
+        fetchRegistros(key);
+        setError("");
+      } else {
+        setError("Erro ao salvar registro: Chave inválida ou problema na API.");
+      }
+    } catch (err) {
+      setError(
+        "Erro ao salvar registro. Verifique sua conexão ou tente novamente.",
+      );
+    }
+  };
+
+  const handleSearch = () => fetchRegistros(key, search, filterCategory);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-center">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Erro</h1>
+        <p className="text-gray-700 mb-6">{error}</p>
+        <a
+          href="/"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+        >
+          Voltar
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+          Sistema de Registros
+        </h1>
+
+        {/* Formulário */}
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white p-6 rounded-lg shadow-md mb-8"
+        >
+          <div className="mb-4">
+            <label className="block text-gray-700 font-medium mb-2">
+              Categoria
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option>Mundo Uno</option>
+              <option>Mundo DUO</option>
+              <option>Mundo TRINO</option>
+            </select>
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 font-medium mb-2">
+              Descrição
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 font-medium mb-2">
+              Detalhes
+            </label>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              required
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-32 resize-y"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <FaSave /> Salvar
+          </button>
+        </form>
+
+        {/* Busca e Filtro */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">
+            Lista de Registros
+          </h2>
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Busca..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex-1">
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option>Mundo Uno</option>
+                <option>Mundo DUO</option>
+                <option>Mundo TRINO</option>
+              </select>
+            </div>
+            <button
+              onClick={handleSearch}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+            >
+              <FaSearch /> Buscar
+            </button>
+          </div>
+        </div>
+
+        {/* Lista de Registros */}
+        <div className="space-y-4">
+          {registros.length === 0 ? (
+            <p className="text-gray-500 text-center">
+              Nenhum registro encontrado.
+            </p>
+          ) : (
+            registros.map((reg) => (
+              <div
+                key={reg._id}
+                className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition"
+              >
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {reg.category}
+                </h3>
+                <p className="text-gray-700">{reg.description}</p>
+                <p className="text-gray-600 mt-2">{reg.details}</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  {new Date(reg.createdAt).toLocaleString()}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
