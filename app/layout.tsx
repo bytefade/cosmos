@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Cosmos",
-  description: "App para registro de ideias",
+  description: "App registro mundo UNO, DUO, TRINO",
 };
 
 export default function RootLayout({

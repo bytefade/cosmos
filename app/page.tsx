@@ -127,7 +127,7 @@ export default function Home() {
               onChange={(e) => setCategory(e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option>Mundo Uno</option>
+              <option>Mundo UNO</option>
               <option>Mundo DUO</option>
               <option>Mundo TRINO</option>
             </select>
