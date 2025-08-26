@@ -13,7 +13,7 @@ interface Registro {
 }
 
 export default function Home() {
-  const [category, setCategory] = useState("Mundo Uno");
+  const [category, setCategory] = useState("Um");
   const [description, setDescription] = useState("");
   const [details, setDetails] = useState("");
   const [registros, setRegistros] = useState<Registro[]>([]);
@@ -125,17 +125,15 @@ export default function Home() {
           className="bg-white p-6 rounded-lg shadow-md mb-8"
         >
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">
-              Categoria
-            </label>
+            <label className="block text-gray-700 font-medium mb-2">Tipo</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option>Mundo Uno</option>
-              <option>Mundo DUO</option>
-              <option>Mundo TRINO</option>
+              <option>Um</option>
+              <option>Dois</option>
+              <option>Três</option>
             </select>
           </div>
           <div className="mb-4">
@@ -191,9 +189,9 @@ export default function Home() {
                 className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todos</option>
-                <option>Mundo Uno</option>
-                <option>Mundo DUO</option>
-                <option>Mundo TRINO</option>
+                <option>Um</option>
+                <option>Dois</option>
+                <option>Três</option>
               </select>
             </div>
             <button
