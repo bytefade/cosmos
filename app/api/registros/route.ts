@@ -21,56 +21,158 @@ const formatDescription = (description: string): string => {
 
 // POST: Salvar novo registro
 export async function POST(req: NextRequest) {
-  if (!checkAuth(req))
+  if (!checkAuth(req)) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
-  await connectDB();
-  const body = await req.json();
+  }
+  try {
+    await connectDB();
+    const body = await req.json();
 
-  // Valida campos obrigatórios
-  if (!body.description) {
+    // Valida campos obrigatórios
+    if (!body.description) {
+      return NextResponse.json(
+        { error: "Descrição é obrigatória" },
+        { status: 400 },
+      );
+    }
+    if (!body.category) {
+      return NextResponse.json(
+        { error: "Categoria é obrigatória" },
+        { status: 400 },
+      );
+    }
+
+    // Aplica formatação ao campo description
+    body.description = formatDescription(body.description);
+
+    // Verifica se a descrição formatada é válida
+    if (!body.description) {
+      return NextResponse.json(
+        { error: "Descrição inválida após formatação" },
+        { status: 400 },
+      );
+    }
+
+    const novo = new Registro(body);
+    await novo.save();
+    return NextResponse.json(novo, { status: 201 });
+  } catch (error) {
+    console.error("Erro ao salvar registro:", error);
     return NextResponse.json(
-      { error: "Descrição é obrigatória" },
-      { status: 400 },
+      { error: "Erro interno ao salvar registro" },
+      { status: 500 },
     );
   }
-
-  // Aplica formatação ao campo description
-  body.description = formatDescription(body.description);
-
-  // Verifica se a descrição formatada é válida
-  if (!body.description) {
-    return NextResponse.json(
-      { error: "Descrição inválida após formatação" },
-      { status: 400 },
-    );
-  }
-
-  const novo = new Registro(body);
-  await novo.save();
-  return NextResponse.json(novo, { status: 201 });
 }
 
-// GET: Listar com busca e filtro
-export async function GET(req: NextRequest) {
-  if (!checkAuth(req))
+// PUT: Atualizar registro existente
+export async function PUT(req: NextRequest) {
+  if (!checkAuth(req)) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
-  await connectDB();
-  const { searchParams } = req.nextUrl;
-  const search = searchParams.get("search") || "";
-  const category = searchParams.get("category") || "";
-
-  const query: RegistroQuery = {};
-  if (category) query.category = category;
-  if (search) {
-    query.$or = [
-      { description: { $regex: search, $options: "i" } },
-      { details: { $regex: search, $options: "i" } },
-      { category: { $regex: search, $options: "i" } },
-    ];
   }
+  try {
+    await connectDB();
+    const body = await req.json();
 
-  const registros = await Registro.find(query)
-    .sort({ createdAt: -1 })
-    .limit(50); // Últimos 50
-  return NextResponse.json(registros);
+    // Valida campos obrigatórios
+    if (!body._id) {
+      return NextResponse.json(
+        { error: "ID do registro é obrigatório" },
+        { status: 400 },
+      );
+    }
+    if (!body.description) {
+      return NextResponse.json(
+        { error: "Descrição é obrigatória" },
+        { status: 400 },
+      );
+    }
+    if (!body.category) {
+      return NextResponse.json(
+        { error: "Categoria é obrigatória" },
+        { status: 400 },
+      );
+    }
+
+    // Aplica formatação ao campo description
+    body.description = formatDescription(body.description);
+
+    // Verifica se a descrição formatada é válida
+    if (!body.description) {
+      return NextResponse.json(
+        { error: "Descrição inválida após formatação" },
+        { status: 400 },
+      );
+    }
+
+    const registro = await Registro.findByIdAndUpdate(
+      body._id,
+      {
+        category: body.category,
+        description: body.description,
+        details: body.details,
+      },
+      { new: true, runValidators: true },
+    );
+
+    if (!registro) {
+      return NextResponse.json(
+        { error: "Registro não encontrado" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json(registro, { status: 200 });
+  } catch (error) {
+    console.error("Erro ao atualizar registro:", error);
+    return NextResponse.json(
+      { error: "Erro interno ao atualizar registro" },
+      { status: 500 },
+    );
+  }
+}
+
+// GET: Listar com busca, filtro e paginação
+export async function GET(req: NextRequest) {
+  if (!checkAuth(req)) {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
+  }
+  try {
+    await connectDB();
+    const { searchParams } = req.nextUrl;
+    const search = searchParams.get("search") || "";
+    const category = searchParams.get("category") || "";
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const skip = (page - 1) * limit;
+
+    const query: RegistroQuery = {};
+    if (category) query.category = category;
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { details: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const registros = await Registro.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    const total = await Registro.countDocuments(query);
+
+    return NextResponse.json({
+      registros,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error("Erro ao listar registros:", error);
+    return NextResponse.json(
+      { error: "Erro interno ao listar registros" },
+      { status: 500 },
+    );
+  }
 }

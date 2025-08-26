@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, FormEvent, useEffect, useCallback } from "react";
-import { FaSave, FaSearch } from "react-icons/fa";
+import {
+  FaSave,
+  FaSearch,
+  FaArrowLeft,
+  FaArrowRight,
+  FaEdit,
+} from "react-icons/fa";
 import Link from "next/link";
 
 interface Registro {
@@ -10,6 +16,13 @@ interface Registro {
   description: string;
   details: string;
   createdAt: string;
+}
+
+interface ApiResponse {
+  registros: Registro[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
 export default function Home() {
@@ -21,16 +34,20 @@ export default function Home() {
   const [filterCategory, setFilterCategory] = useState("");
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchRegistros = useCallback(
-    async (urlKey: string, s = search, cat = filterCategory) => {
+    async (urlKey: string, s = search, cat = filterCategory, p = page) => {
       try {
         const res = await fetch(
-          `/api/registros?key=${urlKey}&search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}`,
+          `/api/registros?key=${urlKey}&search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}&page=${p}&limit=10`,
         );
         if (res.ok) {
-          const data = await res.json();
-          setRegistros(data);
+          const data: ApiResponse = await res.json();
+          setRegistros(data.registros);
+          setTotalPages(data.totalPages);
           setError("");
         } else {
           setError(
@@ -44,7 +61,7 @@ export default function Home() {
         );
       }
     },
-    [search, filterCategory],
+    [search, filterCategory, page],
   );
 
   useEffect(() => {
@@ -66,29 +83,73 @@ export default function Home() {
       return;
     }
     try {
-      const res = await fetch(`/api/registros?key=${key}`, {
-        method: "POST",
+      const url = editingId
+        ? `/api/registros?key=${key}`
+        : `/api/registros?key=${key}`;
+      const method = editingId ? "PUT" : "POST";
+      const body = editingId
+        ? { _id: editingId, category, description, details }
+        : { category, description, details };
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, description, details }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         setDescription("");
         setDetails("");
+        setCategory("Um");
+        setEditingId(null); // Sai do modo de edição
+        setPage(1); // Volta para a primeira página
         fetchRegistros(key);
         setError("");
       } else {
         const errorData = await res.json();
-        setError(errorData.error || "Erro ao salvar registro.");
+        setError(
+          errorData.error ||
+            `Erro ao ${editingId ? "atualizar" : "salvar"} registro.`,
+        );
       }
     } catch (err) {
-      console.error("Erro ao salvar:", err);
+      console.error("Erro ao salvar/atualizar:", err);
       setError(
-        "Erro ao salvar registro. Verifique sua conexão ou tente novamente.",
+        "Erro ao salvar/atualizar registro. Verifique sua conexão ou tente novamente.",
       );
     }
   };
 
-  const handleSearch = () => fetchRegistros(key, search, filterCategory);
+  const handleEdit = (registro: Registro) => {
+    setEditingId(registro._id);
+    setCategory(registro.category);
+    setDescription(registro.description);
+    setDetails(registro.details);
+    // Rola suavemente para o formulário
+    const form = document.getElementById("registro-form");
+    if (form) {
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setCategory("Um");
+    setDescription("");
+    setDetails("");
+    setError("");
+  };
+
+  const handleSearch = () => {
+    setPage(1); // Reseta para a primeira página ao buscar
+    fetchRegistros(key, search, filterCategory, 1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
+      fetchRegistros(key, search, filterCategory, newPage);
+    }
+  };
 
   // Formata o campo description em tempo real
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +182,7 @@ export default function Home() {
 
         {/* Formulário */}
         <form
+          id="registro-form"
           onSubmit={handleSubmit}
           className="bg-white p-6 rounded-lg shadow-md mb-8"
         >
@@ -159,12 +221,23 @@ export default function Home() {
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-32 resize-y"
             />
           </div>
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            <FaSave /> Salvar
-          </button>
+          <div className="flex gap-4">
+            <button
+              type="submit"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              <FaSave /> {editingId ? "Atualizar" : "Salvar"}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </form>
 
         {/* Busca e Filtro */}
@@ -213,8 +286,15 @@ export default function Home() {
             registros.map((reg) => (
               <div
                 key={reg._id}
-                className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition"
+                className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition relative"
               >
+                <button
+                  onClick={() => handleEdit(reg)}
+                  className="absolute top-2 right-2 text-gray-600 hover:text-blue-600 transition"
+                  title="Editar"
+                >
+                  <FaEdit />
+                </button>
                 <h3 className="text-lg font-semibold text-gray-800">
                   {reg.category}
                 </h3>
@@ -226,6 +306,35 @@ export default function Home() {
               </div>
             ))
           )}
+        </div>
+
+        {/* Paginação */}
+        <div className="flex justify-between items-center mt-6">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+              page === 1
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            <FaArrowLeft /> Anterior
+          </button>
+          <span className="text-gray-700">
+            Página {page} de {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page === totalPages}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+              page === totalPages
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            Próximo <FaArrowRight />
+          </button>
         </div>
       </div>
     </div>
