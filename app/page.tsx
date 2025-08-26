@@ -25,6 +25,12 @@ interface ApiResponse {
   totalPages: number;
 }
 
+interface CountResponse {
+  Um: number;
+  Dois: number;
+  Três: number;
+}
+
 export default function Home() {
   const [category, setCategory] = useState("Um");
   const [description, setDescription] = useState("");
@@ -37,6 +43,11 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [counts, setCounts] = useState<CountResponse>({
+    Um: 0,
+    Dois: 0,
+    Três: 0,
+  });
 
   const fetchRegistros = useCallback(
     async (urlKey: string, s = search, cat = filterCategory, p = page) => {
@@ -64,6 +75,23 @@ export default function Home() {
     [search, filterCategory, page],
   );
 
+  const fetchCounts = useCallback(async (urlKey: string) => {
+    try {
+      const res = await fetch(`/api/registros?key=${urlKey}&action=count`);
+      if (res.ok) {
+        const data: CountResponse = await res.json();
+        setCounts(data);
+      } else {
+        setError("Erro ao carregar contagem de registros.");
+      }
+    } catch (err) {
+      console.error("Erro ao carregar contagem:", err);
+      setError(
+        "Erro ao conectar com a API para contagem. Verifique sua conexão.",
+      );
+    }
+  }, []);
+
   useEffect(() => {
     const urlKey = new URLSearchParams(window.location.search).get("key");
     if (!urlKey) {
@@ -74,7 +102,8 @@ export default function Home() {
     }
     setKey(urlKey);
     fetchRegistros(urlKey);
-  }, [fetchRegistros]);
+    fetchCounts(urlKey);
+  }, [fetchRegistros, fetchCounts]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -103,6 +132,7 @@ export default function Home() {
         setEditingId(null); // Sai do modo de edição
         setPage(1); // Volta para a primeira página
         fetchRegistros(key);
+        fetchCounts(key); // Atualiza contagem após salvar/editar
         setError("");
       } else {
         const errorData = await res.json();
@@ -242,9 +272,22 @@ export default function Home() {
 
         {/* Busca e Filtro */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Lista de Registros
-          </h2>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">
+              Lista de Registros
+            </h2>
+            <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
+                Um: {counts.Um}
+              </span>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500 text-white">
+                Dois: {counts.Dois}
+              </span>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-500 text-white">
+                Três: {counts.Três}
+              </span>
+            </div>
+          </div>
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <div className="flex-1">
               <input

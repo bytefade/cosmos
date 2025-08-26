@@ -132,7 +132,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// GET: Listar com busca, filtro e paginação
+// GET: Listar registros ou contar por categoria
 export async function GET(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
@@ -140,6 +140,36 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
     const { searchParams } = req.nextUrl;
+    const action = searchParams.get("action");
+
+    if (action === "count") {
+      // Contagem por categoria
+      const counts = await Registro.aggregate([
+        {
+          $group: {
+            _id: "$category",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            category: "$_id",
+            count: 1,
+            _id: 0,
+          },
+        },
+      ]);
+
+      // Formata a resposta como objeto
+      const countMap: { [key: string]: number } = { Um: 0, Dois: 0, Três: 0 };
+      counts.forEach((item: { category: string; count: number }) => {
+        countMap[item.category] = item.count;
+      });
+
+      return NextResponse.json(countMap);
+    }
+
+    // Listagem de registros com busca, filtro e paginação
     const search = searchParams.get("search") || "";
     const category = searchParams.get("category") || "";
     const page = parseInt(searchParams.get("page") || "1", 10);
@@ -169,9 +199,9 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error("Erro ao listar registros:", error);
+    console.error("Erro ao processar requisição:", error);
     return NextResponse.json(
-      { error: "Erro interno ao listar registros" },
+      { error: "Erro interno ao processar requisição" },
       { status: 500 },
     );
   }
