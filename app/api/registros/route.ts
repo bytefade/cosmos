@@ -13,12 +13,38 @@ interface RegistroQuery {
   $or?: Array<{ [key: string]: { $regex: string; $options: string } }>;
 }
 
+// Função para formatar o campo description
+const formatDescription = (description: string): string => {
+  // Apenas converte para caixa alta
+  return description.toUpperCase().trim();
+};
+
 // POST: Salvar novo registro
 export async function POST(req: NextRequest) {
   if (!checkAuth(req))
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
   await connectDB();
   const body = await req.json();
+
+  // Valida campos obrigatórios
+  if (!body.description) {
+    return NextResponse.json(
+      { error: "Descrição é obrigatória" },
+      { status: 400 },
+    );
+  }
+
+  // Aplica formatação ao campo description
+  body.description = formatDescription(body.description);
+
+  // Verifica se a descrição formatada é válida
+  if (!body.description) {
+    return NextResponse.json(
+      { error: "Descrição inválida após formatação" },
+      { status: 400 },
+    );
+  }
+
   const novo = new Registro(body);
   await novo.save();
   return NextResponse.json(novo, { status: 201 });

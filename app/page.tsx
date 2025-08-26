@@ -77,7 +77,8 @@ export default function Home() {
         fetchRegistros(key);
         setError("");
       } else {
-        setError("Erro ao salvar registro: Chave inválida ou problema na API.");
+        const errorData = await res.json();
+        setError(errorData.error || "Erro ao salvar registro.");
       }
     } catch (err) {
       console.error("Erro ao salvar:", err);
@@ -88,6 +89,11 @@ export default function Home() {
   };
 
   const handleSearch = () => fetchRegistros(key, search, filterCategory);
+
+  // Formata o campo description em tempo real
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDescription(e.target.value.toUpperCase().trim());
+  };
 
   if (error) {
     return (
@@ -127,7 +133,7 @@ export default function Home() {
               onChange={(e) => setCategory(e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option>Mundo UNO</option>
+              <option>Mundo Uno</option>
               <option>Mundo DUO</option>
               <option>Mundo TRINO</option>
             </select>
@@ -139,7 +145,7 @@ export default function Home() {
             <input
               type="text"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={handleDescriptionChange}
               required
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
