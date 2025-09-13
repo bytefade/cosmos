@@ -12,15 +12,31 @@ const mockAIResponse = (description: string): string => {
   return `Detalhes gerados para: ${description.toUpperCase()}. Texto de exemplo.`;
 };
 
+interface HuggingFaceResponse {
+  generated_text?: string;
+}
+
+interface GoogleGeminiResponse {
+  contents?: { parts: { text: string }[] }[];
+}
+
+interface GroqResponse {
+  choices?: { message: { content: string } }[];
+}
+
+type APIResponse = HuggingFaceResponse | GoogleGeminiResponse | GroqResponse;
+
 export async function POST(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
   }
 
+  let description: string | undefined;
+
   try {
     await connectDB();
     const body = await req.json();
-    const { description } = body;
+    description = body.description;
 
     if (!description) {
       return NextResponse.json(
@@ -39,17 +55,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let details: string | null = null;
     const { apiName, token } = config;
 
     // Chamada à API escolhida
-    let response;
-    let endpoint;
-    let headers = {
+    const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     };
-    let payload;
+    let endpoint = "";
+    let payload = "";
 
     switch (apiName) {
       case "Hugging Face":
@@ -96,7 +110,7 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    response = await fetch(endpoint, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers,
       body: payload,
@@ -115,11 +129,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await response.json();
-    details =
-      data.choices[0]?.message?.content?.trim() || mockAIResponse(description);
+    const data = (await response.json()) as APIResponse;
+    let result: string;
 
-    return NextResponse.json({ details }, { status: 200 });
+    if (apiName === "Hugging Face") {
+      result =
+        (data as HuggingFaceResponse).generated_text?.trim() ||
+        mockAIResponse(description);
+    } else if (apiName === "Google Gemini") {
+      result =
+        (data as GoogleGeminiResponse).contents?.[0]?.parts[0]?.text?.trim() ||
+        mockAIResponse(description);
+    } else {
+      result =
+        (data as GroqResponse).choices?.[0]?.message?.content?.trim() ||
+        mockAIResponse(description);
+    }
+
+    return NextResponse.json({ details: result }, { status: 200 });
   } catch (error) {
     console.error("Erro ao chamar a API de IA:", error);
     return NextResponse.json(
