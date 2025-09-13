@@ -7,6 +7,8 @@ import {
   FaArrowLeft,
   FaArrowRight,
   FaEdit,
+  FaRobot,
+  FaCog,
 } from "react-icons/fa";
 import Link from "next/link";
 
@@ -31,6 +33,11 @@ interface CountResponse {
   Três: number;
 }
 
+interface AIConfig {
+  apiName: string;
+  token: string;
+}
+
 export default function Home() {
   const [category, setCategory] = useState("Um");
   const [description, setDescription] = useState("");
@@ -48,6 +55,10 @@ export default function Home() {
     Dois: 0,
     Três: 0,
   });
+  const [aiConfig, setAIConfig] = useState<AIConfig | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAPI, setSelectedAPI] = useState("Hugging Face");
+  const [token, setToken] = useState("");
 
   const fetchRegistros = useCallback(
     async (urlKey: string, s = search, cat = filterCategory, p = page) => {
@@ -92,6 +103,79 @@ export default function Home() {
     }
   }, []);
 
+  const fetchAIConfig = useCallback(async (urlKey: string) => {
+    try {
+      const res = await fetch(`/api/ai-config?key=${urlKey}`);
+      if (res.ok) {
+        const data: AIConfig = await res.json();
+        setAIConfig(data);
+      } else {
+        setAIConfig(null);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar configuração de IA:", err);
+      setAIConfig(null);
+    }
+  }, []);
+
+  const saveAIConfig = async () => {
+    if (!key) {
+      setError("Chave não fornecida.");
+      return;
+    }
+    if (!token) {
+      setError("Token é obrigatório.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/ai-config?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiName: selectedAPI, token }),
+      });
+      if (res.ok) {
+        setAIConfig({ apiName: selectedAPI, token });
+        setIsModalOpen(false);
+        setError("");
+      } else {
+        const errorData = await res.json();
+        setError(errorData.error || "Erro ao salvar configuração.");
+      }
+    } catch (err) {
+      console.error("Erro ao salvar configuração:", err);
+      setError("Erro ao salvar configuração de IA.");
+    }
+  };
+
+  const fetchAIDetails = async () => {
+    if (!description) {
+      setError("Descrição é necessária para gerar detalhes com IA.");
+      return;
+    }
+    if (!key) {
+      setError("Chave não fornecida.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/ai?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDetails(data.details);
+        setError("");
+      } else {
+        const errorData = await res.json();
+        setError(errorData.error || "Erro ao gerar detalhes com IA.");
+      }
+    } catch (err) {
+      console.error("Erro ao chamar IA:", err);
+      setError("Erro ao conectar com a API de IA.");
+    }
+  };
+
   useEffect(() => {
     const urlKey = new URLSearchParams(window.location.search).get("key");
     if (!urlKey) {
@@ -103,7 +187,8 @@ export default function Home() {
     setKey(urlKey);
     fetchRegistros(urlKey);
     fetchCounts(urlKey);
-  }, [fetchRegistros, fetchCounts]);
+    fetchAIConfig(urlKey);
+  }, [fetchRegistros, fetchCounts, fetchAIConfig]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -129,10 +214,10 @@ export default function Home() {
         setDescription("");
         setDetails("");
         setCategory("Um");
-        setEditingId(null); // Sai do modo de edição
-        setPage(1); // Volta para a primeira página
+        setEditingId(null);
+        setPage(1);
         fetchRegistros(key);
-        fetchCounts(key); // Atualiza contagem após salvar/editar
+        fetchCounts(key);
         setError("");
       } else {
         const errorData = await res.json();
@@ -154,7 +239,6 @@ export default function Home() {
     setCategory(registro.category);
     setDescription(registro.description);
     setDetails(registro.details);
-    // Rola suavemente para o formulário
     const form = document.getElementById("registro-form");
     if (form) {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -170,7 +254,7 @@ export default function Home() {
   };
 
   const handleSearch = () => {
-    setPage(1); // Reseta para a primeira página ao buscar
+    setPage(1);
     fetchRegistros(key, search, filterCategory, 1);
   };
 
@@ -181,7 +265,6 @@ export default function Home() {
     }
   };
 
-  // Formata o campo description em tempo real
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDescription(e.target.value.toUpperCase().trim());
   };
@@ -210,7 +293,6 @@ export default function Home() {
           </h1>
         </div>
 
-        {/* Formulário */}
         <form
           id="registro-form"
           onSubmit={handleSubmit}
@@ -232,13 +314,32 @@ export default function Home() {
             <label className="block text-gray-700 font-medium mb-2">
               Descrição
             </label>
-            <input
-              type="text"
-              value={description}
-              onChange={handleDescriptionChange}
-              required
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={description}
+                onChange={handleDescriptionChange}
+                required
+                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={fetchAIDetails}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                disabled={!description || !aiConfig}
+                title="Gerar detalhes com IA"
+              >
+                <FaRobot /> IA it!
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+                title="Configurar IA"
+              >
+                <FaCog />
+              </button>
+            </div>
           </div>
           <div className="mb-4">
             <label className="block text-gray-700 font-medium mb-2">
@@ -270,7 +371,136 @@ export default function Home() {
           </div>
         </form>
 
-        {/* Busca e Filtro */}
+        {/* Modal de Configuração de IA */}
+        {isModalOpen && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(75, 85, 99, 0.4)", // Cinza claro com 40% de opacidade
+              backdropFilter: "blur(4px)", // Desfoque suave
+              zIndex: 50,
+              transition: "opacity 0.3s ease-in-out",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#ffffff",
+                padding: "1.5rem",
+                borderRadius: "0.75rem",
+                boxShadow:
+                  "0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)",
+                maxWidth: "28rem",
+                width: "100%",
+                margin: "0 1rem",
+                transform: "scale(1)",
+                transition: "transform 0.3s ease-in-out",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: 600,
+                  color: "#1f2937",
+                  marginBottom: "1rem",
+                }}
+              >
+                Configurar IA
+              </h2>
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    color: "#1f2937",
+                    fontWeight: 500,
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  Escolha a API
+                </label>
+                <select
+                  value={selectedAPI}
+                  onChange={(e) => setSelectedAPI(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "0.375rem",
+                  }}
+                >
+                  <option>Hugging Face</option>
+                  <option>Google Gemini</option>
+                  <option>Groq</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    color: "#1f2937",
+                    fontWeight: 500,
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  Token da API
+                </label>
+                <input
+                  type="text"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Insira o token da API escolhida"
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "0.375rem",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "1rem" }}>
+                <button
+                  onClick={saveAIConfig}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#2563eb",
+                    color: "#ffffff",
+                    borderRadius: "0.375rem",
+                    transition: "background-color 0.2s",
+                    cursor: "pointer",
+                  }}
+                >
+                  Salvar
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#4b5563",
+                    color: "#ffffff",
+                    borderRadius: "0.375rem",
+                    transition: "background-color 0.2s",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
@@ -319,7 +549,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Lista de Registros */}
         <div className="space-y-4">
           {registros.length === 0 ? (
             <p className="text-gray-500 text-center">
@@ -351,7 +580,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Paginação */}
         <div className="flex justify-between items-center mt-6">
           <button
             onClick={() => handlePageChange(page - 1)}
