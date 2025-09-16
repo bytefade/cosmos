@@ -2,50 +2,46 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "../../../lib/db";
 import AIConfig from "../../../models/AIConfig";
 
+interface RequestBody {
+  description: string;
+}
+
 const checkAuth = (req: NextRequest) => {
-  const key = req.nextUrl.searchParams.get("key");
+  const key = req.headers.get("x-auth-key");
   return key === process.env.SECRET_KEY;
 };
 
-// Mock response function
 const mockAIResponse = (description: string): string => {
   return `Detalhes gerados para: ${description.toUpperCase()}. Texto de exemplo.`;
 };
-
-interface HuggingFaceResponse {
-  generated_text?: string;
-}
-
-interface GoogleGeminiResponse {
-  contents?: { parts: { text: string }[] }[];
-}
-
-interface GroqResponse {
-  choices?: { message: { content: string } }[];
-}
-
-type APIResponse = HuggingFaceResponse | GoogleGeminiResponse | GroqResponse;
 
 export async function POST(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 });
   }
 
-  let description: string | undefined;
+  let body: RequestBody;
+  try {
+    body = await req.json();
+  } catch (error) {
+    console.error("Erro ao parsear JSON:", error);
+    return NextResponse.json(
+      { error: "Corpo da requisição inválido" },
+      { status: 400 },
+    );
+  }
+
+  const { description } = body;
+
+  if (!description) {
+    return NextResponse.json(
+      { error: "Descrição é obrigatória" },
+      { status: 400 },
+    );
+  }
 
   try {
     await connectDB();
-    const body = await req.json();
-    description = body.description;
-
-    if (!description) {
-      return NextResponse.json(
-        { error: "Descrição é obrigatória" },
-        { status: 400 },
-      );
-    }
-
-    // Ler configuração de IA
     const config = await AIConfig.findOne({ userId: "default-user" });
     if (!config || !config.token) {
       console.warn("Configuração de IA não encontrada, usando mock.");
@@ -57,7 +53,6 @@ export async function POST(req: NextRequest) {
 
     const { apiName, token } = config;
 
-    // Chamada à API escolhida
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -129,21 +124,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = (await response.json()) as APIResponse;
+    const data = await response.json();
     let result: string;
 
-    if (apiName === "Hugging Face") {
-      result =
-        (data as HuggingFaceResponse).generated_text?.trim() ||
-        mockAIResponse(description);
-    } else if (apiName === "Google Gemini") {
-      result =
-        (data as GoogleGeminiResponse).contents?.[0]?.parts[0]?.text?.trim() ||
-        mockAIResponse(description);
-    } else {
-      result =
-        (data as GroqResponse).choices?.[0]?.message?.content?.trim() ||
-        mockAIResponse(description);
+    switch (apiName) {
+      case "Hugging Face":
+        result = data.generated_text?.trim() || mockAIResponse(description);
+        break;
+      case "Google Gemini":
+        result =
+          data.contents?.[0]?.parts[0]?.text?.trim() ||
+          mockAIResponse(description);
+        break;
+      default:
+        result =
+          data.choices?.[0]?.message?.content?.trim() ||
+          mockAIResponse(description);
+        break;
     }
 
     return NextResponse.json({ details: result }, { status: 200 });

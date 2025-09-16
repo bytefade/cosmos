@@ -10,7 +10,7 @@ import {
   FaRobot,
   FaCog,
 } from "react-icons/fa";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Registro {
   _id: string;
@@ -59,12 +59,28 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAPI, setSelectedAPI] = useState("Hugging Face");
   const [token, setToken] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const authKey = sessionStorage.getItem("authKey") || "";
+      if (!authKey) {
+        router.push("/unauthorized");
+        return;
+      }
+      setKey(authKey);
+    }
+  }, [router]);
 
   const fetchRegistros = useCallback(
-    async (urlKey: string, s = search, cat = filterCategory, p = page) => {
+    async (s = search, cat = filterCategory, p = page) => {
+      if (!key) return;
       try {
         const res = await fetch(
-          `/api/registros?key=${urlKey}&search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}&page=${p}&limit=10`,
+          `/api/registros?search=${encodeURIComponent(s)}&category=${encodeURIComponent(cat)}&page=${p}&limit=10`,
+          {
+            headers: { "x-auth-key": key },
+          },
         );
         if (res.ok) {
           const data: ApiResponse = await res.json();
@@ -83,12 +99,15 @@ export default function Home() {
         );
       }
     },
-    [search, filterCategory, page],
+    [search, filterCategory, page, key],
   );
 
-  const fetchCounts = useCallback(async (urlKey: string) => {
+  const fetchCounts = useCallback(async () => {
+    if (!key) return;
     try {
-      const res = await fetch(`/api/registros?key=${urlKey}&action=count`);
+      const res = await fetch(`/api/registros?action=count`, {
+        headers: { "x-auth-key": key },
+      });
       if (res.ok) {
         const data: CountResponse = await res.json();
         setCounts(data);
@@ -101,11 +120,14 @@ export default function Home() {
         "Erro ao conectar com a API para contagem. Verifique sua conexão.",
       );
     }
-  }, []);
+  }, [key]);
 
-  const fetchAIConfig = useCallback(async (urlKey: string) => {
+  const fetchAIConfig = useCallback(async () => {
+    if (!key) return;
     try {
-      const res = await fetch(`/api/ai-config?key=${urlKey}`);
+      const res = await fetch(`/api/ai-config`, {
+        headers: { "x-auth-key": key },
+      });
       if (res.ok) {
         const data: AIConfig = await res.json();
         setAIConfig(data);
@@ -116,21 +138,20 @@ export default function Home() {
       console.error("Erro ao carregar configuração de IA:", err);
       setAIConfig(null);
     }
-  }, []);
+  }, [key]);
 
   const saveAIConfig = async () => {
-    if (!key) {
-      setError("Chave não fornecida.");
-      return;
-    }
     if (!token) {
       setError("Token é obrigatório.");
       return;
     }
     try {
-      const res = await fetch(`/api/ai-config?key=${key}`, {
+      const res = await fetch(`/api/ai-config`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-auth-key": key,
+        },
         body: JSON.stringify({ apiName: selectedAPI, token }),
       });
       if (res.ok) {
@@ -157,9 +178,12 @@ export default function Home() {
       return;
     }
     try {
-      const res = await fetch(`/api/ai?key=${key}`, {
+      const res = await fetch(`/api/ai`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-auth-key": key,
+        },
         body: JSON.stringify({ description }),
       });
       if (res.ok) {
@@ -177,29 +201,21 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const urlKey = new URLSearchParams(window.location.search).get("key");
-    if (!urlKey) {
-      setError(
-        "Por favor, adicione ?key=sua-chave-secreta na URL para acessar.",
-      );
-      return;
+    if (key) {
+      fetchRegistros();
+      fetchCounts();
+      fetchAIConfig();
     }
-    setKey(urlKey);
-    fetchRegistros(urlKey);
-    fetchCounts(urlKey);
-    fetchAIConfig(urlKey);
-  }, [fetchRegistros, fetchCounts, fetchAIConfig]);
+  }, [key, fetchRegistros, fetchCounts, fetchAIConfig]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!key) {
-      setError("Chave não fornecida. Adicione ?key=sua-chave-secreta na URL.");
+      setError("Chave não fornecida.");
       return;
     }
     try {
-      const url = editingId
-        ? `/api/registros?key=${key}`
-        : `/api/registros?key=${key}`;
+      const url = editingId ? `/api/registros` : `/api/registros`;
       const method = editingId ? "PUT" : "POST";
       const body = editingId
         ? { _id: editingId, category, description, details }
@@ -207,7 +223,10 @@ export default function Home() {
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-auth-key": key,
+        },
         body: JSON.stringify(body),
       });
       if (res.ok) {
@@ -216,8 +235,8 @@ export default function Home() {
         setCategory("Um");
         setEditingId(null);
         setPage(1);
-        fetchRegistros(key);
-        fetchCounts(key);
+        fetchRegistros();
+        fetchCounts();
         setError("");
       } else {
         const errorData = await res.json();
@@ -255,13 +274,13 @@ export default function Home() {
 
   const handleSearch = () => {
     setPage(1);
-    fetchRegistros(key, search, filterCategory, 1);
+    fetchRegistros(search, filterCategory, 1);
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setPage(newPage);
-      fetchRegistros(key, search, filterCategory, newPage);
+      fetchRegistros(search, filterCategory, newPage);
     }
   };
 
@@ -271,15 +290,15 @@ export default function Home() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4 text-center">
         <h1 className="text-2xl font-bold text-red-600 mb-4">Erro</h1>
         <p className="text-gray-700 mb-6">{error}</p>
-        <Link
-          href="/"
+        <button
+          onClick={() => router.push("/unauthorized")}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           Voltar
-        </Link>
+        </button>
       </div>
     );
   }
@@ -371,84 +390,28 @@ export default function Home() {
           </div>
         </form>
 
-        {/* Modal de Configuração de IA */}
         {isModalOpen && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(75, 85, 99, 0.4)", // Cinza claro com 40% de opacidade
-              backdropFilter: "blur(4px)", // Desfoque suave
-              zIndex: 50,
-              transition: "opacity 0.3s ease-in-out",
-            }}
-          >
-            <div
-              style={{
-                backgroundColor: "#ffffff",
-                padding: "1.5rem",
-                borderRadius: "0.75rem",
-                boxShadow:
-                  "0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)",
-                maxWidth: "28rem",
-                width: "100%",
-                margin: "0 1rem",
-                transform: "scale(1)",
-                transition: "transform 0.3s ease-in-out",
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: 600,
-                  color: "#1f2937",
-                  marginBottom: "1rem",
-                }}
-              >
+          <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 backdrop-blur-sm z-50 transition-opacity duration-300">
+            <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full sm:w-11/12 transform transition-all duration-300 scale-100">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">
                 Configurar IA
               </h2>
-              <div style={{ marginBottom: "1rem" }}>
-                <label
-                  style={{
-                    display: "block",
-                    color: "#1f2937",
-                    fontWeight: 500,
-                    marginBottom: "0.5rem",
-                  }}
-                >
+              <div className="mb-4">
+                <label className="block text-gray-700 font-medium mb-2">
                   Escolha a API
                 </label>
                 <select
                   value={selectedAPI}
                   onChange={(e) => setSelectedAPI(e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "0.375rem",
-                  }}
                 >
                   <option>Hugging Face</option>
                   <option>Google Gemini</option>
                   <option>Groq</option>
                 </select>
               </div>
-              <div style={{ marginBottom: "1rem" }}>
-                <label
-                  style={{
-                    display: "block",
-                    color: "#1f2937",
-                    fontWeight: 500,
-                    marginBottom: "0.5rem",
-                  }}
-                >
+              <div className="mb-4">
+                <label className="block text-gray-700 font-medium mb-2">
                   Token da API
                 </label>
                 <input
@@ -457,42 +420,18 @@ export default function Home() {
                   onChange={(e) => setToken(e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Insira o token da API escolhida"
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "0.375rem",
-                  }}
                 />
               </div>
-              <div style={{ display: "flex", gap: "1rem" }}>
+              <div className="flex gap-4">
                 <button
                   onClick={saveAIConfig}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  style={{
-                    flex: 1,
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#2563eb",
-                    color: "#ffffff",
-                    borderRadius: "0.375rem",
-                    transition: "background-color 0.2s",
-                    cursor: "pointer",
-                  }}
                 >
                   Salvar
                 </button>
                 <button
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  style={{
-                    flex: 1,
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#4b5563",
-                    color: "#ffffff",
-                    borderRadius: "0.375rem",
-                    transition: "background-color 0.2s",
-                    cursor: "pointer",
-                  }}
                 >
                   Cancelar
                 </button>
